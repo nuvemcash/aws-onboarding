@@ -1,36 +1,36 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  nuvem.cash — onboarding self-service AWS. Cria o bucket de entrega do FOCUS
-  1.2, o export Data Exports da organização inteira e a role read-only que o
-  nuvem.cash assume via External ID para ler o faturado. Aplique este stack
-  na management account, região us-east-1.
+  nuvem.cash - AWS self-service onboarding. Creates the FOCUS 1.2 delivery
+  bucket, the organization-wide Data Exports export and the read-only role
+  that nuvem.cash assumes with an External ID to read billed costs. Deploy
+  this stack in the management account, region us-east-1.
 
 Parameters:
   ExternalId:
     Type: String
     MinLength: 1
     Description: >-
-      External ID emitido pelo nuvem.cash para este workspace. Exigido no
-      trust da role — sem ele, sts:AssumeRole falha. Não é segredo dentro
-      desta conta: fica em texto claro na trust policy da própria role,
-      visível a qualquer leitor de IAM local — por isso não é NoEcho, o que
-      permite o preenchimento automático pelo link de deploy em um clique.
+      External ID issued by nuvem.cash for this workspace. Required by the
+      role trust policy: without it, sts:AssumeRole fails. It is not a secret
+      inside this account (it is stored in clear text in the role trust
+      policy, readable by any local IAM reader), which is why it is not
+      NoEcho and can be pre-filled by the one-click deploy link.
   NuvemcashPrincipalArn:
     Type: String
     Default: arn:aws:iam::737248776567:root
-    Description: ARN do principal da Nuvem.Online autorizado a assumir a role.
+    Description: ARN of the Nuvem.Online principal allowed to assume the role.
   RoleName:
     Type: String
     Default: nuvemcash-collector
-    Description: Nome determinístico da role read-only (ARN derivável do account ID).
+    Description: Deterministic name of the read-only role (its ARN derives from the account ID).
   ExportName:
     Type: String
     Default: nuvemcash-focus-1-2
-    Description: Nome do export Data Exports (FOCUS 1.2).
+    Description: Name of the Data Exports export (FOCUS 1.2).
   S3Prefix:
     Type: String
     Default: focus
-    Description: Prefixo no bucket onde o export escreve os objetos.
+    Description: Bucket prefix where the export writes its objects.
 
 Resources:
   FocusBucket:
@@ -169,14 +169,14 @@ Resources:
 
 Outputs:
   RoleArn:
-    Description: ARN da role read-only para configurar o provider no nuvem.cash.
+    Description: ARN of the read-only role, used to set up the provider in nuvem.cash.
     Value: !GetAtt CollectorRole.Arn
   BucketName:
-    Description: Bucket onde o export FOCUS escreve os objetos.
+    Description: Bucket where the FOCUS export writes its objects.
     Value: !Ref FocusBucket
   ExportArn:
-    Description: ARN do export Data Exports (FOCUS 1.2).
+    Description: ARN of the Data Exports export (FOCUS 1.2).
     Value: !GetAtt FocusExport.ExportArn
   AppPrefix:
-    Description: Prefixo completo (S3Prefix/ExportName) onde o nuvem.cash lê os objetos.
+    Description: Full prefix (S3Prefix/ExportName) where nuvem.cash reads the objects.
     Value: !Sub ${S3Prefix}/${ExportName}
