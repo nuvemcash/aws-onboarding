@@ -26,7 +26,7 @@ Clique no link abaixo (o `ExternalId` é gerado pelo nuvem.cash ao iniciar a con
 provider — copie-o da tela de onboarding):
 
 ```
-https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https://nuvemcash-onboarding.s3.amazonaws.com/latest/template.yaml&stackName=nuvemcash-collector&param_ExternalId=<seu-external-id>
+https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https://nuvemcash-onboarding.s3.us-east-1.amazonaws.com/latest/template.yaml&stackName=nuvemcash-collector&param_ExternalId=<seu-external-id>
 ```
 
 Ao final do deploy, copie o output `RoleArn` e cole na tela de conexão do provider AWS no
@@ -144,7 +144,7 @@ Se a política da sua organização proíbe aplicar stacks de template de tercei
 mesmo template pelo CloudShell (management account, região `us-east-1`):
 
 ```bash
-curl -o template.yaml https://nuvemcash-onboarding.s3.amazonaws.com/latest/template.yaml
+curl -o template.yaml https://nuvemcash-onboarding.s3.us-east-1.amazonaws.com/latest/template.yaml
 aws cloudformation deploy \
   --stack-name nuvemcash-collector \
   --template-file template.yaml \
