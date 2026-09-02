@@ -155,6 +155,19 @@ aws cloudformation describe-stacks --stack-name nuvemcash-collector --region us-
   --query 'Stacks[0].Outputs'
 ```
 
+## Pré-requisitos de billing
+
+- Aplique o stack na **management account** da Organization, região **`us-east-1`** — Cost
+  Explorer e Data Exports só existem lá.
+- **Cost Explorer** precisa estar habilitado na conta (o primeiro acesso ao console do Cost
+  Explorer já liga); sem isso o `ce:GetCostAndUsage` da role é negado mesmo com o stack em
+  `CREATE_COMPLETE`.
+- Em **Account settings → Billing and Cost Management**, a opção **"IAM user and role access
+  to Billing information"** precisa estar ativada — contas mais antigas nascem com ela
+  desligada, e nesse caso a role read-only não enxerga nada de billing.
+- A primeira entrega do export FOCUS pode levar **até 24h** depois do deploy. Nesse intervalo
+  o bucket fica vazio de propósito — é o comportamento esperado, não uma falha do stack.
+
 ## Renovar ou remover
 
 **Renovar/reaplicar:** rode o `deploy` de novo (console ou CLI) com a versão atual do
