@@ -1,0 +1,164 @@
+# nuvem.cash — Onboarding AWS (template público)
+
+Template CloudFormation **público e genérico** usado pelo onboarding "um clique" do
+[nuvem.cash](https://nuvem.cash) para conectar uma conta AWS.
+
+Ao ser aplicado na **management account** da sua Organization (região `us-east-1`), ele
+cria, de forma **somente leitura**:
+
+- um bucket S3 privado (`nuvemcash-focus-<account-id>`), criptografado (SSE-S3) e com
+  acesso público bloqueado;
+- uma bucket policy que autoriza só o serviço `bcm-data-exports.amazonaws.com` a escrever
+  nesse bucket;
+- um export **AWS Data Exports** no formato **FOCUS 1.2**, cobrindo a organização inteira,
+  em CSV+GZIP, modo *overwrite*;
+- uma IAM role read-only (`nuvemcash-collector`, nome determinístico — o ARN é derivável
+  do seu account ID) que o nuvem.cash assume via `sts:AssumeRole`, condicionada a um
+  **External ID** exclusivo do seu workspace.
+
+Nenhuma credencial de longa duração sai da sua conta: o nuvem.cash acessa via
+cross-account role assumption, o padrão que a própria AWS recomenda para acesso de
+terceiros.
+
+## Deploy em um clique
+
+Clique no link abaixo (o `ExternalId` é gerado pelo nuvem.cash ao iniciar a conexão do
+provider — copie-o da tela de onboarding):
+
+```
+https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https://nuvemcash-onboarding.s3.amazonaws.com/latest/template.yaml&stackName=nuvemcash-collector&param_ExternalId=<seu-external-id>
+```
+
+Ao final do deploy, copie o output `RoleArn` e cole na tela de conexão do provider AWS no
+nuvem.cash.
+
+## Passo a passo manual (fallback do wizard)
+
+Se preferir não rodar um stack de terceiro, os mesmos quatro recursos podem ser criados à
+mão, na management account, região `us-east-1`.
+
+### 1. Bucket privado
+
+```bash
+aws s3api create-bucket --bucket nuvemcash-focus-<account-id> --region us-east-1
+aws s3api put-bucket-encryption --bucket nuvemcash-focus-<account-id> \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+aws s3api put-public-access-block --bucket nuvemcash-focus-<account-id> \
+  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+```
+
+### 2. Bucket policy do Data Exports
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EnableAWSDataExportsToWriteToS3",
+      "Effect": "Allow",
+      "Principal": { "Service": "bcm-data-exports.amazonaws.com" },
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::nuvemcash-focus-<account-id>/*",
+      "Condition": {
+        "StringEquals": { "aws:SourceAccount": "<account-id>" },
+        "ArnLike": { "aws:SourceArn": "arn:aws:bcm-data-exports:us-east-1:<account-id>:export/*" }
+      }
+    }
+  ]
+}
+```
+
+> Use exatamente `ArnLike` em `aws:SourceArn` e `StringEquals` em `aws:SourceAccount` — a
+> variante com `StringLike` nos dois campos faz o `CreateExport` falhar.
+
+```bash
+aws s3api put-bucket-policy --bucket nuvemcash-focus-<account-id> --policy file://policy.json
+```
+
+### 3. Export FOCUS 1.2
+
+```bash
+aws bcm-data-exports create-export --export '{
+  "Name": "nuvemcash-focus-1-2",
+  "Description": "Export FOCUS 1.2 consumido pelo nuvem.cash (leitura via IAM role cross-account).",
+  "DataQuery": {
+    "QueryStatement": "SELECT AvailabilityZone, BilledCost, BillingAccountId, BillingAccountName, BillingAccountType, BillingCurrency, BillingPeriodEnd, BillingPeriodStart, CapacityReservationId, CapacityReservationStatus, ChargeCategory, ChargeClass, ChargeDescription, ChargeFrequency, ChargePeriodEnd, ChargePeriodStart, CommitmentDiscountCategory, CommitmentDiscountId, CommitmentDiscountName, CommitmentDiscountQuantity, CommitmentDiscountType, CommitmentDiscountStatus, CommitmentDiscountUnit, ConsumedQuantity, ConsumedUnit, ContractedCost, ContractedUnitPrice, EffectiveCost, InvoiceId, InvoiceIssuerName, ListCost, ListUnitPrice, PricingCategory, PricingCurrency, PricingCurrencyContractedUnitPrice, PricingCurrencyEffectiveCost, PricingCurrencyListUnitPrice, PricingQuantity, PricingUnit, ProviderName, PublisherName, RegionId, RegionName, ResourceId, ResourceName, ResourceType, ServiceCategory, ServiceName, ServiceSubcategory, SkuId, SkuPriceDetails, SkuPriceId, SkuMeter, SubAccountId, SubAccountName, SubAccountType, Tags, x_Discounts, x_Operation, x_ServiceCode FROM FOCUS_1_2_AWS",
+    "TableConfigurations": { "FOCUS_1_2_AWS": {} }
+  },
+  "DestinationConfigurations": {
+    "S3Destination": {
+      "S3Bucket": "nuvemcash-focus-<account-id>",
+      "S3Prefix": "focus",
+      "S3Region": "us-east-1",
+      "S3OutputConfigurations": {
+        "OutputType": "CUSTOM",
+        "Format": "TEXT_OR_CSV",
+        "Compression": "GZIP",
+        "Overwrite": "OVERWRITE_REPORT"
+      }
+    }
+  },
+  "RefreshCadence": { "Frequency": "SYNCHRONOUS" }
+}'
+```
+
+### 4. Role read-only
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::737248776567:user/nuvemcash-collector" },
+      "Action": "sts:AssumeRole",
+      "Condition": { "StringEquals": { "sts:ExternalId": "<seu-external-id>" } }
+    }
+  ]
+}
+```
+
+```bash
+aws iam create-role --role-name nuvemcash-collector --assume-role-policy-document file://trust.json
+aws iam put-role-policy --role-name nuvemcash-collector --policy-name nuvemcash-collector-readonly --policy-document '{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "ReadFocusObjects", "Effect": "Allow", "Action": ["s3:GetObject"], "Resource": "arn:aws:s3:::nuvemcash-focus-<account-id>/*" },
+    { "Sid": "ListFocusBucket", "Effect": "Allow", "Action": ["s3:ListBucket", "s3:GetBucketLocation"], "Resource": "arn:aws:s3:::nuvemcash-focus-<account-id>" },
+    { "Sid": "ReadCostExplorer", "Effect": "Allow", "Action": ["ce:GetCostAndUsage"], "Resource": "*" },
+    { "Sid": "ReadExportMetadata", "Effect": "Allow", "Action": ["bcm-data-exports:GetExport", "bcm-data-exports:ListExports", "bcm-data-exports:GetTable", "bcm-data-exports:ListTables", "bcm-data-exports:ListExecutions"], "Resource": "*" }
+  ]
+}'
+```
+
+Copie o `Arn` da role criada e cole na tela de conexão do provider AWS no nuvem.cash.
+
+## Alternativa: AWS CloudShell
+
+Se a política da sua organização proíbe aplicar stacks de template de terceiros, rode o
+mesmo template pelo CloudShell (management account, região `us-east-1`):
+
+```bash
+curl -o template.yaml https://nuvemcash-onboarding.s3.amazonaws.com/latest/template.yaml
+aws cloudformation deploy \
+  --stack-name nuvemcash-collector \
+  --template-file template.yaml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides ExternalId=<seu-external-id> \
+  --region us-east-1
+aws cloudformation describe-stacks --stack-name nuvemcash-collector --region us-east-1 \
+  --query 'Stacks[0].Outputs'
+```
+
+## Renovar ou remover
+
+**Renovar/reaplicar:** rode o `deploy` de novo (console ou CLI) com a versão atual do
+template — todos os recursos são idempotentes e nada é substituído.
+
+**Remover:** apague o stack (console ou `aws cloudformation delete-stack --stack-name
+nuvemcash-collector --region us-east-1`, esvaziando antes o bucket se o export já tiver
+escrito objetos). Isso remove a role, o export, a bucket policy e o bucket — a Nuvem.Online
+perde acesso imediatamente.
+
+Se criou os recursos manualmente (passo a passo acima), remova na ordem inversa: role →
+export (`aws bcm-data-exports delete-export`) → bucket policy → bucket.

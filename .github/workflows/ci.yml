@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  PUBLISHER_ROLE_ARN: arn:aws:iam::737248776567:role/nuvemcash-onboarding-publisher
+  ONBOARDING_BUCKET: nuvemcash-onboarding
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar cfn-lint
+        run: pip install cfn-lint
+
+      - name: cfn-lint
+        run: cfn-lint template.yaml
+
+      - name: Configurar credenciais AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.PUBLISHER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: aws cloudformation validate-template
+        run: |
+          aws cloudformation validate-template \
+            --template-body file://template.yaml \
+            --region ${{ env.AWS_REGION }}
+
+  publish:
+    needs: validate
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar credenciais AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.PUBLISHER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Publicar versão marcada
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/${TAG}/template.yaml"
+
+      - name: Publicar latest
+        run: |
+          aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/latest/template.yaml" \
+            --cache-control "max-age=60"
