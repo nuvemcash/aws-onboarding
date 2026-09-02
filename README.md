@@ -110,7 +110,7 @@ aws bcm-data-exports create-export --export '{
   "Statement": [
     {
       "Effect": "Allow",
-      "Principal": { "AWS": "arn:aws:iam::737248776567:user/nuvemcash-collector" },
+      "Principal": { "AWS": "arn:aws:iam::737248776567:root" },
       "Action": "sts:AssumeRole",
       "Condition": { "StringEquals": { "sts:ExternalId": "<seu-external-id>" } }
     }
@@ -130,6 +130,11 @@ aws iam put-role-policy --role-name nuvemcash-collector --policy-name nuvemcash-
   ]
 }'
 ```
+
+> O principal `arn:aws:iam::737248776567:root` delega o controle de quem pode assumir a
+> role para o IAM da própria conta Nuvem.Online — é o padrão AWS para acesso de terceiro e
+> sobrevive a rotação ou troca do usuário/role coletor sem exigir redeploy em cada conta
+> cliente.
 
 Copie o `Arn` da role criada e cole na tela de conexão do provider AWS no nuvem.cash.
 

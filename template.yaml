@@ -17,7 +17,7 @@ Parameters:
       permite o preenchimento automático pelo link de deploy em um clique.
   NuvemcashPrincipalArn:
     Type: String
-    Default: arn:aws:iam::737248776567:user/nuvemcash-collector
+    Default: arn:aws:iam::737248776567:root
     Description: ARN do principal da Nuvem.Online autorizado a assumir a role.
   RoleName:
     Type: String
