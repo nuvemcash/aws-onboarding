@@ -17,16 +17,16 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Instalar cfn-lint
-        run: pip install cfn-lint
+        run: pip install cfn-lint==1.56.0
 
       - name: cfn-lint
         run: cfn-lint template.yaml
 
       - name: Configurar credenciais AWS via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: ${{ env.PUBLISHER_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -42,10 +42,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Configurar credenciais AWS via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: ${{ env.PUBLISHER_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
