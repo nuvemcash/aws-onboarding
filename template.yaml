@@ -8,11 +8,13 @@ Description: >-
 Parameters:
   ExternalId:
     Type: String
-    NoEcho: true
     MinLength: 1
     Description: >-
       External ID emitido pelo nuvem.cash para este workspace. Exigido no
-      trust da role — sem ele, sts:AssumeRole falha.
+      trust da role — sem ele, sts:AssumeRole falha. Não é segredo dentro
+      desta conta: fica em texto claro na trust policy da própria role,
+      visível a qualquer leitor de IAM local — por isso não é NoEcho, o que
+      permite o preenchimento automático pelo link de deploy em um clique.
   NuvemcashPrincipalArn:
     Type: String
     Default: arn:aws:iam::737248776567:user/nuvemcash-collector
