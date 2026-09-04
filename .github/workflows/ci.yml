@@ -49,6 +49,7 @@ jobs:
 
       - name: Gate de versão semver
         id: gate
+        shell: bash
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           git tag --list 'v*' | scripts/semver-gate.sh "$TAG" | tee -a "$GITHUB_OUTPUT"
@@ -60,12 +61,13 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Publicar versão marcada
+        if: steps.gate.outputs.publish == 'true'
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/${TAG}/template.yaml"
 
       - name: Publicar latest
-        if: steps.gate.outputs.latest == 'true'
+        if: steps.gate.outputs.publish == 'true' && steps.gate.outputs.latest == 'true'
         run: |
           aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/latest/template.yaml" \
             --cache-control "max-age=60"
