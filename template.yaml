@@ -35,6 +35,8 @@ Parameters:
 Resources:
   FocusBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub nuvemcash-focus-${AWS::AccountId}
       BucketEncryption:
@@ -142,26 +144,16 @@ Resources:
                 Effect: Allow
                 Action:
                   - s3:GetObject
-                Resource: !Sub ${FocusBucket.Arn}/*
+                Resource: !Sub ${FocusBucket.Arn}/${S3Prefix}/*
               - Sid: ListFocusBucket
                 Effect: Allow
                 Action:
                   - s3:ListBucket
-                  - s3:GetBucketLocation
                 Resource: !GetAtt FocusBucket.Arn
               - Sid: ReadCostExplorer
                 Effect: Allow
                 Action:
                   - ce:GetCostAndUsage
-                Resource: "*"
-              - Sid: ReadExportMetadata
-                Effect: Allow
-                Action:
-                  - bcm-data-exports:GetExport
-                  - bcm-data-exports:ListExports
-                  - bcm-data-exports:GetTable
-                  - bcm-data-exports:ListTables
-                  - bcm-data-exports:ListExecutions
                 Resource: "*"
       Tags:
         - Key: nuvemcash:managed-by
