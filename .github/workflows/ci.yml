@@ -44,6 +44,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Gate de versão semver
+        id: gate
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          git tag --list 'v*' | scripts/semver-gate.sh "$TAG" | tee -a "$GITHUB_OUTPUT"
 
       - name: Configurar credenciais AWS via OIDC
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
@@ -57,6 +65,7 @@ jobs:
           aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/${TAG}/template.yaml"
 
       - name: Publicar latest
+        if: steps.gate.outputs.latest == 'true'
         run: |
           aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/latest/template.yaml" \
             --cache-control "max-age=60"
