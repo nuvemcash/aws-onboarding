@@ -130,6 +130,9 @@ aws iam put-role-policy --role-name nuvemcash-collector --region us-east-1 --pol
 }'
 ```
 
+> O `Resource` de `ReadFocusObjects` acima usa o prefixo `focus/` do `create-export` do
+> passo 3 — se você mudar o `S3Prefix` lá, ajuste este `Resource` junto.
+
 > O principal `arn:aws:iam::737248776567:root` delega o controle de quem pode assumir a
 > role para o IAM da própria conta Nuvem.Online — é o padrão AWS para acesso de terceiro e
 > sobrevive a rotação ou troca do usuário/role coletor sem exigir redeploy em cada conta
