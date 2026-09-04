@@ -30,6 +30,8 @@ Parameters:
   S3Prefix:
     Type: String
     Default: focus
+    AllowedPattern: ^[^/]+(/[^/]+)*$
+    ConstraintDescription: must not start or end with "/" and must not contain empty segments (e.g. "focus" or "focus/exports").
     Description: Bucket prefix where the export writes its objects.
 
 Resources:
