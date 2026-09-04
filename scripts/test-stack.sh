@@ -72,4 +72,7 @@ aws s3 rm "s3://${BUCKET_NAME}" --recursive --region "$REGION" || true
 echo "==> Destruindo o stack"
 aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION"
 aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "$REGION"
+
+echo "==> Removendo o bucket retido (sobrevive ao delete-stack por causa do Retain)"
+aws s3api delete-bucket --bucket "$BUCKET_NAME" --region "$REGION"
 echo "==> Stack destruído"

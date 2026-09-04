@@ -173,7 +173,10 @@ aws cloudformation describe-stacks --stack-name nuvemcash-collector --region us-
 template — os recursos do **stack** são idempotentes e nada é substituído. Essa garantia
 vale só para quem passou pelo CloudFormation: se você criou os recursos manualmente (passo
 a passo acima), rodar os mesmos comandos de novo tende a falhar por já existirem (por
-exemplo, `aws iam create-role` não é idempotente).
+exemplo, `aws iam create-role` não é idempotente). **Se você já apagou o stack antes**,
+reaplicar exige remover (ou renomear) o bucket `nuvemcash-focus-<account-id>` primeiro: o
+nome é determinístico, o bucket sobreviveu ao `delete-stack` por causa do Retain (ver
+abaixo) e o `deploy` falha tentando recriar um bucket que já existe.
 
 **Remover:** apague o stack (console ou `aws cloudformation delete-stack --stack-name
 nuvemcash-collector --region us-east-1`). Isso remove a role, o export e a bucket policy —
