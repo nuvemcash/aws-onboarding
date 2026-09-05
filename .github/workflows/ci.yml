@@ -10,6 +10,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
+  VALIDATOR_ROLE_ARN: arn:aws:iam::737248776567:role/nuvemcash-onboarding-validator
   PUBLISHER_ROLE_ARN: arn:aws:iam::737248776567:role/nuvemcash-onboarding-publisher
   ONBOARDING_BUCKET: nuvemcash-onboarding
 
@@ -28,7 +29,7 @@ jobs:
       - name: Configurar credenciais AWS via OIDC
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
-          role-to-assume: ${{ env.PUBLISHER_ROLE_ARN }}
+          role-to-assume: ${{ env.VALIDATOR_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: aws cloudformation validate-template
@@ -43,6 +44,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Gate de versão semver
+        id: gate
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          git tag --list 'v*' | scripts/semver-gate.sh "$TAG" | tee -a "$GITHUB_OUTPUT"
 
       - name: Configurar credenciais AWS via OIDC
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
@@ -51,11 +61,13 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Publicar versão marcada
+        if: steps.gate.outputs.publish == 'true'
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/${TAG}/template.yaml"
 
       - name: Publicar latest
+        if: steps.gate.outputs.publish == 'true' && steps.gate.outputs.latest == 'true'
         run: |
           aws s3 cp template.yaml "s3://${{ env.ONBOARDING_BUCKET }}/latest/template.yaml" \
             --cache-control "max-age=60"

@@ -41,9 +41,9 @@ mão, na management account, região `us-east-1`.
 
 ```bash
 aws s3api create-bucket --bucket nuvemcash-focus-<account-id> --region us-east-1
-aws s3api put-bucket-encryption --bucket nuvemcash-focus-<account-id> \
+aws s3api put-bucket-encryption --bucket nuvemcash-focus-<account-id> --region us-east-1 \
   --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-aws s3api put-public-access-block --bucket nuvemcash-focus-<account-id> \
+aws s3api put-public-access-block --bucket nuvemcash-focus-<account-id> --region us-east-1 \
   --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ```
 
@@ -72,13 +72,13 @@ aws s3api put-public-access-block --bucket nuvemcash-focus-<account-id> \
 > variante com `StringLike` nos dois campos faz o `CreateExport` falhar.
 
 ```bash
-aws s3api put-bucket-policy --bucket nuvemcash-focus-<account-id> --policy file://policy.json
+aws s3api put-bucket-policy --bucket nuvemcash-focus-<account-id> --region us-east-1 --policy file://policy.json
 ```
 
 ### 3. Export FOCUS 1.2
 
 ```bash
-aws bcm-data-exports create-export --export '{
+aws bcm-data-exports create-export --region us-east-1 --export '{
   "Name": "nuvemcash-focus-1-2",
   "Description": "Export FOCUS 1.2 consumido pelo nuvem.cash (leitura via IAM role cross-account).",
   "DataQuery": {
@@ -119,17 +119,19 @@ aws bcm-data-exports create-export --export '{
 ```
 
 ```bash
-aws iam create-role --role-name nuvemcash-collector --assume-role-policy-document file://trust.json
-aws iam put-role-policy --role-name nuvemcash-collector --policy-name nuvemcash-collector-readonly --policy-document '{
+aws iam create-role --role-name nuvemcash-collector --region us-east-1 --assume-role-policy-document file://trust.json
+aws iam put-role-policy --role-name nuvemcash-collector --region us-east-1 --policy-name nuvemcash-collector-readonly --policy-document '{
   "Version": "2012-10-17",
   "Statement": [
-    { "Sid": "ReadFocusObjects", "Effect": "Allow", "Action": ["s3:GetObject"], "Resource": "arn:aws:s3:::nuvemcash-focus-<account-id>/*" },
-    { "Sid": "ListFocusBucket", "Effect": "Allow", "Action": ["s3:ListBucket", "s3:GetBucketLocation"], "Resource": "arn:aws:s3:::nuvemcash-focus-<account-id>" },
-    { "Sid": "ReadCostExplorer", "Effect": "Allow", "Action": ["ce:GetCostAndUsage"], "Resource": "*" },
-    { "Sid": "ReadExportMetadata", "Effect": "Allow", "Action": ["bcm-data-exports:GetExport", "bcm-data-exports:ListExports", "bcm-data-exports:GetTable", "bcm-data-exports:ListTables", "bcm-data-exports:ListExecutions"], "Resource": "*" }
+    { "Sid": "ReadFocusObjects", "Effect": "Allow", "Action": ["s3:GetObject"], "Resource": "arn:aws:s3:::nuvemcash-focus-<account-id>/focus/*" },
+    { "Sid": "ListFocusBucket", "Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": "arn:aws:s3:::nuvemcash-focus-<account-id>" },
+    { "Sid": "ReadCostExplorer", "Effect": "Allow", "Action": ["ce:GetCostAndUsage"], "Resource": "*" }
   ]
 }'
 ```
+
+> O `Resource` de `ReadFocusObjects` acima usa o prefixo `focus/` do `create-export` do
+> passo 3 — se você mudar o `S3Prefix` lá, ajuste este `Resource` junto.
 
 > O principal `arn:aws:iam::737248776567:root` delega o controle de quem pode assumir a
 > role para o IAM da própria conta Nuvem.Online — é o padrão AWS para acesso de terceiro e
@@ -171,12 +173,28 @@ aws cloudformation describe-stacks --stack-name nuvemcash-collector --region us-
 ## Renovar ou remover
 
 **Renovar/reaplicar:** rode o `deploy` de novo (console ou CLI) com a versão atual do
-template — todos os recursos são idempotentes e nada é substituído.
+template — os recursos do **stack** são idempotentes e nada é substituído. Essa garantia
+vale só para quem passou pelo CloudFormation: se você criou os recursos manualmente (passo
+a passo acima), rodar os mesmos comandos de novo tende a falhar por já existirem (por
+exemplo, `aws iam create-role` não é idempotente). **Se você já apagou o stack antes**,
+reaplicar exige remover (ou renomear) o bucket `nuvemcash-focus-<account-id>` primeiro: o
+nome é determinístico, o bucket sobreviveu ao `delete-stack` por causa do Retain (ver
+abaixo) e o `deploy` falha tentando recriar um bucket que já existe.
 
 **Remover:** apague o stack (console ou `aws cloudformation delete-stack --stack-name
-nuvemcash-collector --region us-east-1`, esvaziando antes o bucket se o export já tiver
-escrito objetos). Isso remove a role, o export, a bucket policy e o bucket — a Nuvem.Online
-perde acesso imediatamente.
+nuvemcash-collector --region us-east-1`). Isso remove a role, o export e a bucket policy —
+a Nuvem.Online perde acesso imediatamente.
+
+O bucket **não** é removido pelo delete-stack: ele tem `DeletionPolicy`/`UpdateReplacePolicy`
+`Retain` de propósito, para o histórico FOCUS já entregue sobreviver mesmo que o stack seja
+apagado (sem isso, o delete apagava o histórico do cliente junto, ou travava em
+`DELETE_FAILED` com objetos dentro). Se quiser remover o bucket também, esvazie-o e apague-o
+à mão depois do delete-stack:
+
+```bash
+aws s3 rm s3://nuvemcash-focus-<account-id> --recursive --region us-east-1
+aws s3api delete-bucket --bucket nuvemcash-focus-<account-id> --region us-east-1
+```
 
 Se criou os recursos manualmente (passo a passo acima), remova na ordem inversa: role →
 export (`aws bcm-data-exports delete-export`) → bucket policy → bucket.
